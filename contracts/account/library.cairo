@@ -8,6 +8,7 @@ from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.memcpy import memcpy
 from starkware.starknet.common.syscalls import call_contract, get_caller_address, get_tx_info
+from starkware.cairo.common.math import assert_not_zero
 
 from contracts.introspection.ERC165 import ERC165
 from contracts.introspection.IERC165 import IERC165
@@ -29,6 +30,10 @@ end
 
 @event
 func AccountUpgraded(new_implementation: felt):
+end
+
+@event
+func AccountInitialized(public_key: felt):
 end
 
 #
@@ -62,8 +67,22 @@ namespace Account:
       pedersen_ptr : HashBuiltin*,
       range_check_ptr
     }(_public_key: felt):
+    # check that we are not already initialized
+    let (current_public_key) = Account_public_key.read()
+    with_attr error_message("already initialized"):
+        assert current_public_key = 0
+    end
+
+    # check that the target signer is not zero
+    with_attr error_message("public key cannot be null"):
+      assert_not_zero(_public_key)
+    end
+
     Account_public_key.write(_public_key)
     ERC165.register_interface(IACCOUNT_ID)
+
+    # emit event
+    AccountInitialized.emit(_public_key)
     return()
   end
 

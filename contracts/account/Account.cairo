@@ -10,11 +10,11 @@ from contracts.account.library import Account, AccountCallArray
 from contracts.introspection.ERC165 import ERC165
 
 #
-# Constructor
+# Initializer
 #
 
-@constructor
-func constructor{
+@external
+func initialize{
     syscall_ptr : felt*,
     pedersen_ptr : HashBuiltin*,
     range_check_ptr
