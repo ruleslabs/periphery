@@ -28,6 +28,15 @@ end
 #
 
 @view
+func get_nonce{
+    syscall_ptr : felt*,
+    pedersen_ptr : HashBuiltin*,
+    range_check_ptr
+  }() -> (res: felt):
+  return (0) # Dummy
+end
+
+@view
 func get_public_key{
     syscall_ptr : felt*,
     pedersen_ptr : HashBuiltin*,
@@ -107,8 +116,7 @@ func __execute__{
     call_array_len,
     call_array,
     calldata_len,
-    calldata,
-    nonce
+    calldata
   )
   return (response_len=response_len, response=response)
 end
