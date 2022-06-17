@@ -15,11 +15,11 @@ from contracts.introspection.ERC165 import ERC165
 
 @external
 func initialize{
-    syscall_ptr : felt*,
-    pedersen_ptr : HashBuiltin*,
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
     range_check_ptr
-  }(public_key: felt):
-  Account.initializer(public_key)
+  }(signer_public_key: felt, guardian_public_key: felt):
+  Account.initializer(signer_public_key, guardian_public_key)
   return ()
 end
 
@@ -29,20 +29,31 @@ end
 
 @view
 func get_nonce{
-    syscall_ptr : felt*,
-    pedersen_ptr : HashBuiltin*,
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
     range_check_ptr
   }() -> (res: felt):
-  return (0) # Dummy
+  let (nonce) = Account.get_nonce()
+  return (nonce)
 end
 
 @view
-func get_public_key{
-    syscall_ptr : felt*,
-    pedersen_ptr : HashBuiltin*,
+func get_signer_public_key{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
     range_check_ptr
   }() -> (res: felt):
-  let (res) = Account.get_public_key()
+  let (res) = Account.get_signer_public_key()
+  return (res=res)
+end
+
+@view
+func get_guardian_public_key{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  }() -> (res: felt):
+  let (res) = Account.get_guardian_public_key()
   return (res=res)
 end
 
@@ -61,22 +72,64 @@ end
 #
 
 @external
-func set_public_key{
-    syscall_ptr : felt*,
-    pedersen_ptr : HashBuiltin*,
+func set_signer_public_key{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
     range_check_ptr
   }(new_public_key: felt):
-  Account.set_public_key(new_public_key)
+  Account.set_signer_public_key(new_public_key)
+  return ()
+end
+
+@external
+func set_guardian_public_key{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  }(new_public_key: felt):
+  Account.set_guardian_public_key(new_public_key)
   return ()
 end
 
 @external
 func upgrade{
-    syscall_ptr : felt*,
-    pedersen_ptr : HashBuiltin*,
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
     range_check_ptr
   }(implementation: felt):
   Account.upgrade(implementation)
+  return ()
+end
+
+# Escape
+
+@external
+func trigger_signer_escape{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  }():
+  Account.trigger_signer_escape()
+  return ()
+end
+
+@external
+func cancel_escape{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  }():
+  Account.cancel_escape()
+  return ()
+end
+
+@external
+func escape_signer{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  }(new_signer_public_key: felt):
+  Account.escape_signer(new_signer_public_key)
   return ()
 end
 
@@ -86,23 +139,19 @@ end
 
 @view
 func is_valid_signature{
-    syscall_ptr : felt*,
-    pedersen_ptr : HashBuiltin*,
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*
-  }(
-    hash: felt,
-    signature_len: felt,
-    signature: felt*
-  ) -> ():
-  Account.is_valid_signature(hash, signature_len, signature)
-  return ()
+  }(hash: felt, signature_len: felt, signature: felt*) -> (is_valid: felt):
+  let (is_valid) = Account.is_valid_signature(hash, signature_len, signature)
+  return (is_valid)
 end
 
 @external
 func __execute__{
-    syscall_ptr : felt*,
-    pedersen_ptr : HashBuiltin*,
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
     range_check_ptr,
     ecdsa_ptr: SignatureBuiltin*
   }(
@@ -116,7 +165,8 @@ func __execute__{
     call_array_len,
     call_array,
     calldata_len,
-    calldata
+    calldata,
+    nonce
   )
   return (response_len=response_len, response=response)
 end

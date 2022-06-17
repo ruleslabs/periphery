@@ -2,13 +2,14 @@
 
 from starkware.cairo.common.bool import TRUE
 from starkware.cairo.common.registers import get_fp_and_pc
-from starkware.starknet.common.syscalls import get_contract_address
 from starkware.cairo.common.signature import verify_ecdsa_signature
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.memcpy import memcpy
-from starkware.starknet.common.syscalls import call_contract, get_caller_address, get_tx_info
-from starkware.cairo.common.math import assert_not_zero
+from starkware.cairo.common.math import assert_not_zero, assert_nn, assert_le
+from starkware.starknet.common.syscalls import (
+  call_contract, get_caller_address, get_tx_info, get_contract_address, get_block_timestamp
+)
 
 from contracts.introspection.ERC165 import ERC165
 from contracts.introspection.IERC165 import IERC165
@@ -17,24 +18,13 @@ from contracts.utils.constants import IACCOUNT_ID
 from contracts.proxy.Upgradable import _set_implementation
 
 #
-# Storage
+# Constants
 #
 
-@storage_var
-func Account_public_key() -> (res: felt):
-end
+const TRIGGER_ESCAPE_SIGNER_SELECTOR = 823970870440803648323000253851988489761099050950583820081611025987402410277
+const ESCAPE_SIGNER_SELECTOR = 578307412324655990419134484880427622068887477430675222732446709420063579565
 
-#
-# Events
-#
-
-@event
-func AccountUpgraded(new_implementation: felt):
-end
-
-@event
-func AccountInitialized(public_key: felt):
-end
+const ESCAPE_SECURITY_PERIOD = 7 * 24 * 60 * 60 # set to e.g. 7 days in prod
 
 #
 # Structs
@@ -56,6 +46,42 @@ struct AccountCallArray:
   member data_len: felt
 end
 
+struct Escape:
+  member active_at: felt
+end
+
+#
+# Storage
+#
+
+@storage_var
+func Account_signer_public_key() -> (res: felt):
+end
+
+@storage_var
+func Account_guardian_public_key() -> (res: felt):
+end
+
+@storage_var
+func Account_current_nonce() -> (res: felt):
+end
+
+@storage_var
+func Account_signer_escape() -> (res: Escape):
+end
+
+#
+# Events
+#
+
+@event
+func AccountUpgraded(new_implementation: felt):
+end
+
+@event
+func AccountInitialized(signer_public_key: felt, guardian_public_key: felt):
+end
+
 namespace Account:
 
   #
@@ -66,23 +92,25 @@ namespace Account:
       syscall_ptr : felt*,
       pedersen_ptr : HashBuiltin*,
       range_check_ptr
-    }(_public_key: felt):
+    }(signer_public_key: felt, guardian_public_key: felt):
     # check that we are not already initialized
-    let (current_public_key) = Account_public_key.read()
+    let (current_signer_public_key) = Account_signer_public_key.read()
     with_attr error_message("already initialized"):
-        assert current_public_key = 0
+        assert current_signer_public_key = 0
     end
 
     # check that the target signer is not zero
-    with_attr error_message("public key cannot be null"):
-      assert_not_zero(_public_key)
+    with_attr error_message("Account: signer public key cannot be null"):
+      assert_not_zero(signer_public_key)
     end
 
-    Account_public_key.write(_public_key)
+    Account_signer_public_key.write(signer_public_key)
+    Account_guardian_public_key.write(guardian_public_key)
+
     ERC165.register_interface(IACCOUNT_ID)
 
     # emit event
-    AccountInitialized.emit(_public_key)
+    AccountInitialized.emit(signer_public_key, guardian_public_key)
     return()
   end
 
@@ -90,7 +118,7 @@ namespace Account:
   # Guards
   #
 
-  func assert_only_self{syscall_ptr : felt*}():
+  func assert_only_self{ syscall_ptr : felt* }():
     let (self) = get_contract_address()
     let (caller) = get_caller_address()
     with_attr error_message("Account: caller is not this account"):
@@ -99,30 +127,104 @@ namespace Account:
     return ()
   end
 
+  func assert_non_reentrant{ syscall_ptr: felt* } () -> ():
+    let (caller) = get_caller_address()
+    with_attr error_message("Account: no reentrant call"):
+      assert caller = 0
+    end
+    return()
+  end
+
+  func assert_initialized{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  } ():
+    let (signer) = Account_signer_public_key.read()
+    with_attr error_message("Account: not initialized"):
+      assert_not_zero(signer)
+    end
+    return()
+  end
+
+  func assert_no_self_call(
+    self: felt,
+    calls_len: felt,
+    calls: Call*
+  ):
+    if calls_len == 0:
+      return ()
+    end
+
+    assert_not_zero(calls[0].to - self)
+    assert_no_self_call(self, calls_len - 1, calls + Call.SIZE)
+    return()
+  end
+
+  func assert_guardian_set{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  } ():
+    let (guardian) = Account_guardian_public_key.read()
+    with_attr error_message("Account: guardian must be set"):
+      assert_not_zero(guardian)
+    end
+    return()
+  end
+
   #
   # Getters
   #
 
-  func get_public_key{
+  func get_signer_public_key{
       syscall_ptr : felt*,
       pedersen_ptr : HashBuiltin*,
       range_check_ptr
     }() -> (res: felt):
-    let (res) = Account_public_key.read()
+    let (res) = Account_signer_public_key.read()
     return (res=res)
+  end
+
+  func get_guardian_public_key{
+      syscall_ptr : felt*,
+      pedersen_ptr : HashBuiltin*,
+      range_check_ptr
+    }() -> (res: felt):
+    let (res) = Account_guardian_public_key.read()
+    return (res=res)
+  end
+
+  func get_nonce{
+      syscall_ptr: felt*,
+      pedersen_ptr: HashBuiltin*,
+      range_check_ptr
+    } () -> (nonce: felt):
+    let (res) = Account_current_nonce.read()
+    return (nonce=res)
   end
 
   #
   # Setters
   #
 
-  func set_public_key{
+  func set_signer_public_key{
       syscall_ptr : felt*,
       pedersen_ptr : HashBuiltin*,
       range_check_ptr
     }(new_public_key: felt):
     assert_only_self()
-    Account_public_key.write(new_public_key)
+    Account_signer_public_key.write(new_public_key)
+    return ()
+  end
+
+  func set_guardian_public_key{
+      syscall_ptr : felt*,
+      pedersen_ptr : HashBuiltin*,
+      range_check_ptr
+    }(new_public_key: felt):
+    assert_only_self()
+    Account_guardian_public_key.write(new_public_key)
     return ()
   end
 
@@ -151,32 +253,14 @@ namespace Account:
   #
 
   func is_valid_signature{
-      syscall_ptr : felt*,
-      pedersen_ptr : HashBuiltin*,
-      range_check_ptr,
-      ecdsa_ptr: SignatureBuiltin*
-    }(
-      hash: felt,
-      signature_len: felt,
-      signature: felt*
-    ) -> ():
-    let (_public_key) = Account_public_key.read()
-
-    # This interface expects a signature pointer and length to make
-    # no assumption about signature validation schemes.
-    # But this implementation does, and it expects a (sig_r, sig_s) pair.
-    let sig_r = signature[0]
-    let sig_s = signature[1]
-
-    verify_ecdsa_signature(
-      message=hash,
-      public_key=_public_key,
-      signature_r=sig_r,
-      signature_s=sig_s)
-
-    return ()
+    syscall_ptr : felt*,
+    pedersen_ptr : HashBuiltin*,
+    range_check_ptr,
+    ecdsa_ptr: SignatureBuiltin*
+  }(hash: felt, signature_len: felt, signature: felt*) -> (is_valid: felt):
+    let (is_valid) = validate_signer_signature(hash, signature_len, signature)
+    return (is_valid)
   end
-
 
   func execute{
       syscall_ptr : felt*,
@@ -188,31 +272,197 @@ namespace Account:
       call_array: AccountCallArray*,
       calldata_len: felt,
       calldata: felt*,
+      nonce: felt
     ) -> (response_len: felt, response: felt*):
     alloc_locals
 
-    let (caller) = get_caller_address()
-    with_attr error_message("Account: no reentrant call"):
-      assert caller = 0
-    end
-
-    let (__fp__, _) = get_fp_and_pc()
-    let (tx_info) = get_tx_info()
+    # make sure the account is initialized
+    assert_initialized()
+    # no reentrant call to prevent signature reutilization
+    assert_non_reentrant()
 
     # TMP: Convert `AccountCallArray` to 'Call'.
     let (calls : Call*) = alloc()
     _from_call_array_to_call(call_array_len, call_array, calldata, calls)
     let calls_len = call_array_len
 
+    # validate nonce
+    validate_and_bump_nonce(nonce)
+
+    # get the tx info
+    let (tx_info) = get_tx_info()
+
+    if calls_len == 1:
+      if calls[0].to == tx_info.account_contract_address:
+        tempvar guardian_condition = (calls[0].selector - ESCAPE_SIGNER_SELECTOR) * (calls[0].selector - TRIGGER_ESCAPE_SIGNER_SELECTOR)
+
+        if guardian_condition == 0:
+          # validate guardian signature
+          validate_guardian_signature(tx_info.transaction_hash, tx_info.signature_len, tx_info.signature)
+          jmp do_execute
+        end
+      end
+    else:
+        # make sure no call is to the account
+        assert_no_self_call(tx_info.account_contract_address, calls_len, calls)
+    end
+
     # validate transaction
-    is_valid_signature(tx_info.transaction_hash, tx_info.signature_len, tx_info.signature)
+    validate_signer_signature(tx_info.transaction_hash, tx_info.signature_len, tx_info.signature)
 
     # execute call
+    do_execute:
+    local ecdsa_ptr: SignatureBuiltin* = ecdsa_ptr
+    local syscall_ptr: felt* = syscall_ptr
+    local range_check_ptr = range_check_ptr
+    local pedersen_ptr: HashBuiltin* = pedersen_ptr
+
     let (response : felt*) = alloc()
     let (response_len) = _execute_list(calls_len, calls, response)
 
     return (response_len=response_len, response=response)
   end
+
+  # Escape
+
+  func trigger_signer_escape{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  } ():
+    # only called via execute
+    assert_only_self()
+    # no escape when there is no guardian set
+    assert_guardian_set()
+
+    # store new escape
+    let (block_timestamp) = get_block_timestamp()
+    let new_escape: Escape = Escape(block_timestamp + ESCAPE_SECURITY_PERIOD)
+    Account_signer_escape.write(new_escape)
+
+    return()
+  end
+
+  func cancel_escape{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  } ():
+    # only called via execute
+    assert_only_self()
+
+    # validate there is an active escape
+    let (current_signer_escape) = Account_signer_escape.read()
+    with_attr error_message("Account: no escape to cancel"):
+      assert_not_zero(current_signer_escape.active_at)
+    end
+
+    # clear escape
+    let new_escape: Escape = Escape(0)
+    Account_signer_escape.write(new_escape)
+
+    return()
+  end
+
+  func escape_signer{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  } (new_signer_public_key: felt):
+    alloc_locals
+
+    # only called via execute
+    assert_only_self()
+    # no escape when the guardian is not set
+    assert_guardian_set()
+
+    let (current_signer_escape) = Account_signer_escape.read()
+    let (block_timestamp) = get_block_timestamp()
+    with_attr error_message("Account: escape is not valid"):
+      # validate there is an active escape
+      assert_not_zero(current_signer_escape.active_at)
+      assert_le(current_signer_escape.active_at, block_timestamp)
+    end
+
+    # clear escape
+    let new_escape: Escape = Escape(0)
+    Account_signer_escape.write(new_escape)
+
+    # change signer
+    assert_not_zero(new_signer_public_key)
+    Account_signer_public_key.write(new_signer_public_key)
+
+    return()
+  end
+
+  #
+  # Internals
+  #
+
+  func validate_and_bump_nonce{
+      syscall_ptr: felt*,
+      pedersen_ptr: HashBuiltin*,
+      range_check_ptr
+    } (message_nonce: felt) -> ():
+    let (current_nonce) = Account_current_nonce.read()
+    with_attr error_message("nonce invalid"):
+      assert current_nonce = message_nonce
+    end
+
+    Account_current_nonce.write(current_nonce + 1)
+    return()
+  end
+
+  # Signatures
+
+  func validate_signer_signature{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    ecdsa_ptr: SignatureBuiltin*,
+    range_check_ptr
+  } (message: felt, signatures_len: felt, signatures: felt*) -> (is_valid: felt):
+    with_attr error_message("Account: signer signature invalid"):
+      assert_nn(signatures_len - 2)
+      let (public_key) = Account_signer_public_key.read()
+
+      verify_ecdsa_signature(
+        message=message,
+        public_key=public_key,
+        signature_r=signatures[0],
+        signature_s=signatures[1]
+      )
+    end
+
+    return(is_valid=TRUE)
+  end
+
+  func validate_guardian_signature{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    ecdsa_ptr: SignatureBuiltin*,
+    range_check_ptr
+  } (message: felt, signatures_len: felt, signatures: felt*) -> (is_valid: felt):
+    let (public_key) = Account_guardian_public_key.read()
+
+    if public_key == 0:
+      return(is_valid=TRUE)
+    else:
+      with_attr error_message("Account: guardian signature invalid"):
+        assert_nn(signatures_len - 2)
+
+        verify_ecdsa_signature(
+          message=message,
+          public_key=public_key,
+          signature_r=signatures[0],
+          signature_s=signatures[1]
+        )
+      end
+    end
+
+    return(is_valid=TRUE)
+  end
+
+  # Execute
 
   func _execute_list{syscall_ptr: felt*}(
       calls_len: felt,
