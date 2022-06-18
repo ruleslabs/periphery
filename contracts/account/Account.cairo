@@ -28,11 +28,17 @@ end
 #
 
 @view
+func get_version() -> (version: felt):
+  let (version) = Account.get_version()
+  return (version)
+end
+
+@view
 func get_nonce{
     syscall_ptr: felt*,
     pedersen_ptr: HashBuiltin*,
     range_check_ptr
-  }() -> (res: felt):
+  }() -> (nonce: felt):
   let (nonce) = Account.get_nonce()
   return (nonce)
 end
@@ -42,9 +48,9 @@ func get_signer_public_key{
     syscall_ptr: felt*,
     pedersen_ptr: HashBuiltin*,
     range_check_ptr
-  }() -> (res: felt):
-  let (res) = Account.get_signer_public_key()
-  return (res=res)
+  }() -> (public_key: felt):
+  let (public_key) = Account.get_signer_public_key()
+  return (public_key)
 end
 
 @view
@@ -52,9 +58,19 @@ func get_guardian_public_key{
     syscall_ptr: felt*,
     pedersen_ptr: HashBuiltin*,
     range_check_ptr
-  }() -> (res: felt):
-  let (res) = Account.get_guardian_public_key()
-  return (res=res)
+  }() -> (public_key: felt):
+  let (public_key) = Account.get_guardian_public_key()
+  return (public_key)
+end
+
+@view
+func get_signer_escape{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  }() -> (active_at: felt):
+  let (active_at) = Account.get_signer_escape()
+  return (active_at)
 end
 
 @view

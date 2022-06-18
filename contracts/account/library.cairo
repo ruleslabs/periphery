@@ -21,6 +21,8 @@ from contracts.proxy.Upgradable import _set_implementation
 # Constants
 #
 
+const VERSION = '0.1.0'
+
 const TRIGGER_ESCAPE_SIGNER_SELECTOR = 823970870440803648323000253851988489761099050950583820081611025987402410277
 const ESCAPE_SIGNER_SELECTOR = 578307412324655990419134484880427622068887477430675222732446709420063579565
 
@@ -82,6 +84,30 @@ end
 func AccountInitialized(signer_public_key: felt, guardian_public_key: felt):
 end
 
+@event
+func TransactionExecuted(hash: felt, response_len: felt, response: felt*):
+end
+
+@event
+func SignerPublicKeyChanged(new_public_key: felt):
+end
+
+@event
+func GuardianPublicKeyChanged(new_public_key: felt):
+end
+
+@event
+func SignerEscapeTriggered(active_at: felt):
+end
+
+@event
+func SignerEscaped(active_at: felt):
+end
+
+@event
+func EscapeCanceled():
+end
+
 namespace Account:
 
   #
@@ -95,7 +121,7 @@ namespace Account:
     }(signer_public_key: felt, guardian_public_key: felt):
     # check that we are not already initialized
     let (current_signer_public_key) = Account_signer_public_key.read()
-    with_attr error_message("already initialized"):
+    with_attr error_message("Account: already initialized"):
         assert current_signer_public_key = 0
     end
 
@@ -177,6 +203,10 @@ namespace Account:
   # Getters
   #
 
+  func get_version() -> (version: felt):
+    return (version=VERSION)
+  end
+
   func get_signer_public_key{
       syscall_ptr : felt*,
       pedersen_ptr : HashBuiltin*,
@@ -199,9 +229,18 @@ namespace Account:
       syscall_ptr: felt*,
       pedersen_ptr: HashBuiltin*,
       range_check_ptr
-    } () -> (nonce: felt):
+  } () -> (nonce: felt):
     let (res) = Account_current_nonce.read()
     return (nonce=res)
+  end
+
+  func get_signer_escape{
+      syscall_ptr: felt*,
+      pedersen_ptr: HashBuiltin*,
+      range_check_ptr
+  } () -> (active_at: felt):
+    let (res) = Account_signer_escape.read()
+    return (active_at=res.active_at)
   end
 
   #
@@ -212,9 +251,17 @@ namespace Account:
       syscall_ptr : felt*,
       pedersen_ptr : HashBuiltin*,
       range_check_ptr
-    }(new_public_key: felt):
+  }(new_public_key: felt):
+    # only called via execute
     assert_only_self()
+
+    # check that the target signer is not zero
+    with_attr error_message("Account: signer public key cannot be null"):
+      assert_not_zero(new_public_key)
+    end
+
     Account_signer_public_key.write(new_public_key)
+    SignerPublicKeyChanged.emit(new_public_key)
     return ()
   end
 
@@ -222,9 +269,12 @@ namespace Account:
       syscall_ptr : felt*,
       pedersen_ptr : HashBuiltin*,
       range_check_ptr
-    }(new_public_key: felt):
+  }(new_public_key: felt):
+    # only called via execute
     assert_only_self()
+
     Account_guardian_public_key.write(new_public_key)
+    GuardianPublicKeyChanged.emit(new_public_key)
     return ()
   end
 
@@ -232,7 +282,7 @@ namespace Account:
       syscall_ptr : felt*,
       pedersen_ptr : HashBuiltin*,
       range_check_ptr
-    }(implementation: felt):
+  }(implementation: felt):
     # only called via execute
     assert_only_self()
 
@@ -320,6 +370,8 @@ namespace Account:
     let (response : felt*) = alloc()
     let (response_len) = _execute_list(calls_len, calls, response)
 
+    # emit event
+    TransactionExecuted.emit(hash=tx_info.transaction_hash, response_len=response_len, response=response)
     return (response_len=response_len, response=response)
   end
 
@@ -339,6 +391,7 @@ namespace Account:
     let (block_timestamp) = get_block_timestamp()
     let new_escape: Escape = Escape(block_timestamp + ESCAPE_SECURITY_PERIOD)
     Account_signer_escape.write(new_escape)
+    SignerEscapeTriggered.emit(active_at=block_timestamp + ESCAPE_SECURITY_PERIOD)
 
     return()
   end
@@ -360,6 +413,7 @@ namespace Account:
     # clear escape
     let new_escape: Escape = Escape(0)
     Account_signer_escape.write(new_escape)
+    EscapeCanceled.emit()
 
     return()
   end
@@ -378,7 +432,7 @@ namespace Account:
 
     let (current_signer_escape) = Account_signer_escape.read()
     let (block_timestamp) = get_block_timestamp()
-    with_attr error_message("Account: escape is not valid"):
+    with_attr error_message("Account: invalid escape"):
       # validate there is an active escape
       assert_not_zero(current_signer_escape.active_at)
       assert_le(current_signer_escape.active_at, block_timestamp)
@@ -391,6 +445,7 @@ namespace Account:
     # change signer
     assert_not_zero(new_signer_public_key)
     Account_signer_public_key.write(new_signer_public_key)
+    SignerEscaped.emit(new_signer_public_key)
 
     return()
   end
@@ -403,9 +458,9 @@ namespace Account:
       syscall_ptr: felt*,
       pedersen_ptr: HashBuiltin*,
       range_check_ptr
-    } (message_nonce: felt) -> ():
+  } (message_nonce: felt) -> ():
     let (current_nonce) = Account_current_nonce.read()
-    with_attr error_message("nonce invalid"):
+    with_attr error_message("Account: invalid nonce"):
       assert current_nonce = message_nonce
     end
 
@@ -421,7 +476,7 @@ namespace Account:
     ecdsa_ptr: SignatureBuiltin*,
     range_check_ptr
   } (message: felt, signatures_len: felt, signatures: felt*) -> (is_valid: felt):
-    with_attr error_message("Account: signer signature invalid"):
+    with_attr error_message("Account: invalid signer signature"):
       assert_nn(signatures_len - 2)
       let (public_key) = Account_signer_public_key.read()
 
@@ -447,7 +502,7 @@ namespace Account:
     if public_key == 0:
       return(is_valid=TRUE)
     else:
-      with_attr error_message("Account: guardian signature invalid"):
+      with_attr error_message("Account: invalid guardian signature"):
         assert_nn(signatures_len - 2)
 
         verify_ecdsa_signature(

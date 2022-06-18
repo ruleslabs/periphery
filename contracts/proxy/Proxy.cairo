@@ -14,7 +14,7 @@ func constructor{
     syscall_ptr: felt*,
     pedersen_ptr: HashBuiltin*,
     range_check_ptr
-  } (implementation: felt, selector: felt, calldata_len: felt, calldata: felt*):
+  } (implementation: felt, selector: felt, calldata_len: felt, calldata: felt*, salt: felt):
   _set_implementation(implementation)
   library_call(
     class_hash=implementation,
