@@ -1,9 +1,8 @@
 %lang starknet
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.starknet.common.syscalls import library_call, library_call_l1_handler
 
-from contracts.proxy.Upgradable import _get_implementation, _set_implementation
+from contracts.proxy.library import Proxy
 
 #
 # Initializer
@@ -15,54 +14,7 @@ func constructor{
     pedersen_ptr: HashBuiltin*,
     range_check_ptr
   } (implementation: felt, selector: felt, calldata_len: felt, calldata: felt*, salt: felt):
-  _set_implementation(implementation)
-  library_call(
-    class_hash=implementation,
-    function_selector=selector,
-    calldata_size=calldata_len,
-    calldata=calldata
-  )
-  return ()
-end
-
-#
-# Business logic
-#
-
-@external
-@raw_input
-@raw_output
-func __default__{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-  } (selector : felt, calldata_size : felt, calldata : felt*) -> (retdata_size : felt, retdata : felt*):
-  let (implementation) = _get_implementation()
-
-  let (retdata_size : felt, retdata : felt*) = library_call(
-    class_hash=implementation,
-    function_selector=selector,
-    calldata_size=calldata_size,
-    calldata=calldata
-  )
-  return (retdata_size, retdata)
-end
-
-@l1_handler
-@raw_input
-func __l1_default__{
-    syscall_ptr : felt*,
-    pedersen_ptr : HashBuiltin*,
-    range_check_ptr
-  } (selector : felt, calldata_size : felt, calldata : felt*):
-  let (implementation) = _get_implementation()
-
-  library_call_l1_handler(
-    class_hash=implementation,
-    function_selector=selector,
-    calldata_size=calldata_size,
-    calldata=calldata
-  )
+  Proxy.initializer(implementation, selector, calldata_len, calldata)
   return ()
 end
 
@@ -76,6 +28,33 @@ func get_implementation{
     pedersen_ptr: HashBuiltin*,
     range_check_ptr
   } () -> (implementation: felt):
-  let (implementation) = _get_implementation()
+  let (implementation) = Proxy.get_implementation()
   return (implementation)
+end
+
+#
+# Business logic
+#
+
+@external
+@raw_input
+@raw_output
+func __default__{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+  }(selector: felt, calldata_size: felt, calldata: felt*) -> (retdata_size: felt, retdata: felt*):
+  let (retdata_size, retdata) = Proxy.default(selector, calldata_size, calldata)
+  return (retdata_size, retdata)
+end
+
+@l1_handler
+@raw_input
+func __l1_default__{
+    syscall_ptr : felt*,
+    pedersen_ptr : HashBuiltin*,
+    range_check_ptr
+  } (selector: felt, calldata_size: felt, calldata: felt*):
+  Proxy.l1_default(selector, calldata_size, calldata)
+  return ()
 end

@@ -1,6 +1,6 @@
-# Rules account contract
+# Rules periphery contracts
 
-The Account and Proxy contracts deployed for rules users
+The Account and Proxy contracts used by rules
 
 ## Local development
 
@@ -19,4 +19,4 @@ pytest tests/account.py
 
 ## Credits
 
-These contracts are inspired by [argentlabs/argent-contracts-starknet](https://github.com/argentlabs/argent-contracts-starknet)
+The account contract is inspired by [argentlabs/argent-contracts-starknet](https://github.com/argentlabs/argent-contracts-starknet)

@@ -162,10 +162,10 @@ namespace Account:
   end
 
   func assert_initialized{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-  } ():
+      syscall_ptr: felt*,
+      pedersen_ptr: HashBuiltin*,
+      range_check_ptr
+    }():
     let (signer) = Account_signer_public_key.read()
     with_attr error_message("Account: not initialized"):
       assert_not_zero(signer)
@@ -174,10 +174,10 @@ namespace Account:
   end
 
   func assert_no_self_call(
-    self: felt,
-    calls_len: felt,
-    calls: Call*
-  ):
+      self: felt,
+      calls_len: felt,
+      calls: Call*
+    ):
     if calls_len == 0:
       return ()
     end
@@ -188,10 +188,10 @@ namespace Account:
   end
 
   func assert_guardian_set{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-  } ():
+      syscall_ptr: felt*,
+      pedersen_ptr: HashBuiltin*,
+      range_check_ptr
+    }():
     let (guardian) = Account_guardian_public_key.read()
     with_attr error_message("Account: guardian must be set"):
       assert_not_zero(guardian)
@@ -229,7 +229,7 @@ namespace Account:
       syscall_ptr: felt*,
       pedersen_ptr: HashBuiltin*,
       range_check_ptr
-  } () -> (nonce: felt):
+    }() -> (nonce: felt):
     let (res) = Account_current_nonce.read()
     return (nonce=res)
   end
@@ -238,7 +238,7 @@ namespace Account:
       syscall_ptr: felt*,
       pedersen_ptr: HashBuiltin*,
       range_check_ptr
-  } () -> (active_at: felt):
+    }() -> (active_at: felt):
     let (res) = Account_signer_escape.read()
     return (active_at=res.active_at)
   end
@@ -282,7 +282,7 @@ namespace Account:
       syscall_ptr : felt*,
       pedersen_ptr : HashBuiltin*,
       range_check_ptr
-  }(implementation: felt):
+    }(implementation: felt):
     # only called via execute
     assert_only_self()
 
@@ -303,11 +303,11 @@ namespace Account:
   #
 
   func is_valid_signature{
-    syscall_ptr : felt*,
-    pedersen_ptr : HashBuiltin*,
-    range_check_ptr,
-    ecdsa_ptr: SignatureBuiltin*
-  }(hash: felt, signature_len: felt, signature: felt*) -> (is_valid: felt):
+      syscall_ptr : felt*,
+      pedersen_ptr : HashBuiltin*,
+      range_check_ptr,
+      ecdsa_ptr: SignatureBuiltin*
+    }(hash: felt, signature_len: felt, signature: felt*) -> (is_valid: felt):
     let (is_valid) = validate_signer_signature(hash, signature_len, signature)
     return (is_valid)
   end
@@ -378,10 +378,10 @@ namespace Account:
   # Escape
 
   func trigger_signer_escape{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-  } ():
+      syscall_ptr: felt*,
+      pedersen_ptr: HashBuiltin*,
+      range_check_ptr
+    }():
     # only called via execute
     assert_only_self()
     # no escape when there is no guardian set
@@ -397,10 +397,10 @@ namespace Account:
   end
 
   func cancel_escape{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-  } ():
+      syscall_ptr: felt*,
+      pedersen_ptr: HashBuiltin*,
+      range_check_ptr
+    }():
     # only called via execute
     assert_only_self()
 
@@ -419,10 +419,10 @@ namespace Account:
   end
 
   func escape_signer{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-  } (new_signer_public_key: felt):
+      syscall_ptr: felt*,
+      pedersen_ptr: HashBuiltin*,
+      range_check_ptr
+    }(new_signer_public_key: felt):
     alloc_locals
 
     # only called via execute
@@ -458,7 +458,7 @@ namespace Account:
       syscall_ptr: felt*,
       pedersen_ptr: HashBuiltin*,
       range_check_ptr
-  } (message_nonce: felt) -> ():
+    }(message_nonce: felt) -> ():
     let (current_nonce) = Account_current_nonce.read()
     with_attr error_message("Account: invalid nonce"):
       assert current_nonce = message_nonce
@@ -471,11 +471,11 @@ namespace Account:
   # Signatures
 
   func validate_signer_signature{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    ecdsa_ptr: SignatureBuiltin*,
-    range_check_ptr
-  } (message: felt, signatures_len: felt, signatures: felt*) -> (is_valid: felt):
+      syscall_ptr: felt*,
+      pedersen_ptr: HashBuiltin*,
+      ecdsa_ptr: SignatureBuiltin*,
+      range_check_ptr
+    }(message: felt, signatures_len: felt, signatures: felt*) -> (is_valid: felt):
     with_attr error_message("Account: invalid signer signature"):
       assert_nn(signatures_len - 2)
       let (public_key) = Account_signer_public_key.read()
@@ -492,11 +492,11 @@ namespace Account:
   end
 
   func validate_guardian_signature{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    ecdsa_ptr: SignatureBuiltin*,
-    range_check_ptr
-  } (message: felt, signatures_len: felt, signatures: felt*) -> (is_valid: felt):
+      syscall_ptr: felt*,
+      pedersen_ptr: HashBuiltin*,
+      ecdsa_ptr: SignatureBuiltin*,
+      range_check_ptr
+    }(message: felt, signatures_len: felt, signatures: felt*) -> (is_valid: felt):
     let (public_key) = Account_guardian_public_key.read()
 
     if public_key == 0:
