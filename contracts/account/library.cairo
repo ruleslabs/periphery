@@ -8,14 +8,13 @@ from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.memcpy import memcpy
 from starkware.cairo.common.math import assert_not_zero, assert_nn, assert_le
 from starkware.starknet.common.syscalls import (
-  call_contract, get_caller_address, get_tx_info, get_contract_address, get_block_timestamp
+  call_contract, get_caller_address, get_tx_info, get_contract_address, get_block_timestamp, library_call
 )
 
 from contracts.introspection.ERC165 import ERC165
-from contracts.introspection.IERC165 import IERC165
 
 from contracts.utils.constants import IACCOUNT_ID
-from contracts.proxy.Upgradable import _set_implementation
+from contracts.proxy.library import Proxy
 
 #
 # Constants
@@ -25,6 +24,7 @@ const VERSION = '0.1.0'
 
 const TRIGGER_ESCAPE_SIGNER_SELECTOR = 823970870440803648323000253851988489761099050950583820081611025987402410277
 const ESCAPE_SIGNER_SELECTOR = 578307412324655990419134484880427622068887477430675222732446709420063579565
+const SUPPORTS_INTERFACE_SELECTOR = 1184015894760294494673613438913361435336722154500302038630992932234692784845
 
 const ESCAPE_SECURITY_PERIOD = 7 * 24 * 60 * 60 # set to e.g. 7 days in prod
 
@@ -287,13 +287,23 @@ namespace Account:
     assert_only_self()
 
     # make sure the target is an account
-    with_attr error_message("implementation invalid"):
-      let (success) = IERC165.supportsInterface(contract_address=implementation, interfaceId=IACCOUNT_ID)
-      assert success = TRUE
+    with_attr error_message("Account: invalid implementation"):
+      let (calldata: felt*) = alloc()
+      assert calldata[0] = IACCOUNT_ID
+
+      let (retdata_size: felt, retdata: felt*) = library_call(
+        class_hash=implementation,
+        function_selector=SUPPORTS_INTERFACE_SELECTOR,
+        calldata_size=1,
+        calldata=calldata
+      )
+
+      assert retdata_size = 1
+      assert [retdata] = TRUE
     end
 
     # change implementation
-    _set_implementation(implementation)
+    Proxy.set_implementation(implementation)
     AccountUpgraded.emit(new_implementation=implementation)
     return ()
   end

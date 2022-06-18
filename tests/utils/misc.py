@@ -64,5 +64,6 @@ async def deploy_proxy(starknet, proxy_path, abi, params=None):
     state=starknet.state,
     abi=abi,
     contract_address=deployed_proxy.contract_address,
-    deploy_execution_info=deployed_proxy.deploy_execution_info)
+    deploy_execution_info=deployed_proxy.deploy_execution_info
+  )
   return deployed_proxy, wrapped_proxy
