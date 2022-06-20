@@ -44,7 +44,7 @@ async def account_factory(get_starknet):
     starknet,
     "contracts/proxy/Proxy.cairo",
     implementation_class.abi,
-    [implementation_class.class_hash, get_selector_from_name('initialize'), 2, signer.public_key, guardian.public_key, 0],
+    [implementation_class.class_hash, get_selector_from_name('initialize'), 2, signer.public_key, guardian.public_key],
   )
   return account, proxy, implementation_class.class_hash
 

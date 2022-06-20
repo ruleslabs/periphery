@@ -13,7 +13,7 @@ func constructor{
     syscall_ptr: felt*,
     pedersen_ptr: HashBuiltin*,
     range_check_ptr
-  } (implementation: felt, selector: felt, calldata_len: felt, calldata: felt*, salt: felt):
+  } (implementation: felt, selector: felt, calldata_len: felt, calldata: felt*):
   Proxy.initializer(implementation, selector, calldata_len, calldata)
   return ()
 end
