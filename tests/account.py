@@ -48,7 +48,7 @@ def reset_starknet_block(starknet):
 @pytest.fixture
 async def account_factory(get_starknet):
   starknet = get_starknet
-  account = await deploy(starknet, "contracts/account/Account.cairo")
+  account = await deploy(starknet, "src/periphery/account/Account.cairo")
   await account.initialize(signer.public_key, guardian.public_key).invoke()
   return account
 
@@ -56,7 +56,7 @@ async def account_factory(get_starknet):
 @pytest.fixture
 async def dapp_factory(get_starknet):
   starknet = get_starknet
-  dapp = await deploy(starknet, "contracts/test/dapp.cairo")
+  dapp = await deploy(starknet, "src/periphery/test/dapp.cairo")
   return dapp
 
 

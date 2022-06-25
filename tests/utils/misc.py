@@ -1,10 +1,16 @@
 import os
+
+from pathlib import Path
 from starkware.starknet.testing.contract import StarknetContract
 from starkware.starknet.compiler.compile import compile_starknet_files
 from starkware.starkware_utils.error_handling import StarkException
 from starkware.starknet.definitions.error_codes import StarknetErrorCode
 from starkware.starknet.business_logic.execution.objects import Event
 from starkware.starknet.compiler.compile import get_selector_from_name
+
+
+_root = Path(__file__).parent.parent.parent
+
 
 def str_to_felt(text):
   b_text = bytes(text, 'UTF-8')
@@ -44,7 +50,7 @@ async def deploy(starknet, path, params=None):
   if path in contract_classes:
     contract_class = contract_classes[path]
   else:
-    contract_class = compile_starknet_files([path], debug_info=True)
+    contract_class = compile_starknet_files([path], debug_info=True, cairo_path=[str(_root / 'src')])
     contract_classes[path] = contract_class
     await starknet.declare(contract_class=contract_class)
   deployed_contract = await starknet.deploy(contract_class=contract_class,constructor_calldata=params)

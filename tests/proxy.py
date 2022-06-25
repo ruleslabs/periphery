@@ -31,7 +31,7 @@ async def get_starknet():
 @pytest.fixture
 async def account_factory(get_starknet):
   starknet = get_starknet
-  account = await deploy(starknet, "contracts/account/Account.cairo")
+  account = await deploy(starknet, "src/periphery/account/Account.cairo")
   await account.initialize(signer.public_key, guardian.public_key).invoke()
   return account
 
@@ -39,10 +39,10 @@ async def account_factory(get_starknet):
 @pytest.fixture
 async def account_factory(get_starknet):
   starknet = get_starknet
-  implementation_class = await declare(starknet, "contracts/account/Account.cairo")
+  implementation_class = await declare(starknet, "src/periphery/account/Account.cairo")
   proxy, account = await deploy_proxy(
     starknet,
-    "contracts/proxy/Proxy.cairo",
+    "src/periphery/proxy/Proxy.cairo",
     implementation_class.abi,
     [implementation_class.class_hash, get_selector_from_name('initialize'), 2, signer.public_key, guardian.public_key],
   )
@@ -51,10 +51,10 @@ async def account_factory(get_starknet):
 
 @pytest.fixture
 async def dapp_factory(get_starknet):
-    starknet = get_starknet
-    dapp_class = await declare(starknet, "contracts/test/dapp.cairo")
-    dapp = await deploy(starknet, "contracts/test/dapp.cairo")
-    return dapp, dapp_class.class_hash
+  starknet = get_starknet
+  dapp_class = await declare(starknet, "src/periphery/test/dapp.cairo")
+  dapp = await deploy(starknet, "src/periphery/test/dapp.cairo")
+  return dapp, dapp_class.class_hash
 
 
 @pytest.mark.asyncio
@@ -109,10 +109,10 @@ async def test_upgrade(account_factory, dapp_factory):
   tx_exec_info = await sender.send_transaction([(account.contract_address, 'upgrade', [account_impl_2])], signer)
 
   assert_event_emmited(
-      tx_exec_info,
-      from_address=account.contract_address,
-      name='AccountUpgraded',
-      data=[account_impl_2]
+    tx_exec_info,
+    from_address=account.contract_address,
+    name='AccountUpgraded',
+    data=[account_impl_2]
   )
 
   assert (await proxy.get_implementation().call()).result.implementation == (account_impl_2)
