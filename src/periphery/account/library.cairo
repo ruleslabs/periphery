@@ -11,10 +11,10 @@ from starkware.starknet.common.syscalls import (
   call_contract, get_caller_address, get_tx_info, get_contract_address, get_block_timestamp, library_call
 )
 
-from contracts.introspection.ERC165 import ERC165
+from periphery.introspection.ERC165 import ERC165
 
-from contracts.utils.constants import IACCOUNT_ID
-from contracts.proxy.library import Proxy
+from periphery.utils.constants import IACCOUNT_ID
+from periphery.proxy.library import Proxy
 
 #
 # Constants
@@ -453,7 +453,10 @@ namespace Account:
     Account_signer_escape.write(new_escape)
 
     # change signer
-    assert_not_zero(new_signer_public_key)
+    with_attr error_message("Account: new signer public key cannot be null"):
+      # check that the target signer is not zero
+      assert_not_zero(new_signer_public_key)
+    end
     Account_signer_public_key.write(new_signer_public_key)
     SignerEscaped.emit(new_signer_public_key)
 

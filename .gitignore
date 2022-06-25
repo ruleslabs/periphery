@@ -20,3 +20,7 @@ node.json
 # debug
 main.cairo
 test.json
+
+# Build
+build
+dist

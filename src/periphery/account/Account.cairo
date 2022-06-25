@@ -5,9 +5,9 @@
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 
-from contracts.account.library import Account, AccountCallArray
+from periphery.account.library import Account, AccountCallArray
 
-from contracts.introspection.ERC165 import ERC165
+from periphery.introspection.ERC165 import ERC165
 
 #
 # Initializer

@@ -3,7 +3,7 @@
 
 %lang starknet
 
-from contracts.account.library import AccountCallArray
+from periphery.account.library import AccountCallArray
 
 @contract_interface
 namespace IAccount:

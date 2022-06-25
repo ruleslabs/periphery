@@ -2,7 +2,7 @@
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
 
-from contracts.proxy.library import Proxy
+from periphery.proxy.library import Proxy
 
 #
 # Initializer
