@@ -7,6 +7,7 @@ from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.memcpy import memcpy
 from starkware.cairo.common.math import assert_not_zero, assert_nn, assert_le
+from starkware.cairo.common.math_cmp import is_le
 from starkware.starknet.common.syscalls import (
   call_contract, get_caller_address, get_tx_info, get_contract_address, get_block_timestamp, library_call
 )
@@ -346,8 +347,8 @@ namespace Account:
     _from_call_array_to_call(call_array_len, call_array, calldata, calls)
     let calls_len = call_array_len
 
-    # validate nonce
-    validate_and_bump_nonce(nonce)
+    # no validation, just bumping
+    bump_nonce(nonce)
 
     # get the tx info
     let (tx_info) = get_tx_info()
@@ -467,17 +468,22 @@ namespace Account:
   # Internals
   #
 
-  func validate_and_bump_nonce{
+  func bump_nonce{
       syscall_ptr: felt*,
       pedersen_ptr: HashBuiltin*,
       range_check_ptr
     }(message_nonce: felt) -> ():
+    alloc_locals
+
     let (current_nonce) = Account_current_nonce.read()
-    with_attr error_message("Account: invalid nonce"):
-      assert current_nonce = message_nonce
+
+    let (is_message_nonce_lower) = is_le(message_nonce, current_nonce)
+    if is_message_nonce_lower == TRUE:
+      Account_current_nonce.write(current_nonce + 1)
+    else:
+      Account_current_nonce.write(message_nonce + 1)
     end
 
-    Account_current_nonce.write(current_nonce + 1)
     return()
   end
 

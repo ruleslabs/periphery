@@ -83,12 +83,6 @@ async def test_call_dapp(account_factory, dapp_factory):
 
   calls = [(dapp.contract_address, 'set_number', [47])]
 
-  # should revert with the wrong nonce
-  await assert_revert(
-    sender.send_transaction(calls, signer, nonce=3),
-    "Account: invalid nonce"
-  )
-
   # should revert with the wrong signer
   await assert_revert(
     sender.send_transaction(calls, wrong_signer),
@@ -98,7 +92,10 @@ async def test_call_dapp(account_factory, dapp_factory):
   # should call the dapp
   assert (await dapp.get_number(account.contract_address).call()).result.number == 0
 
-  tx_exec_info = await sender.send_transaction(calls, signer)
+  # nonce should be 0
+  assert (await account.get_nonce().call()).result.nonce == 0
+
+  tx_exec_info = await sender.send_transaction(calls, signer, nonce=3)
 
   assert_event_emmited(
     tx_exec_info,
@@ -107,6 +104,17 @@ async def test_call_dapp(account_factory, dapp_factory):
   )
 
   assert (await dapp.get_number(account.contract_address).call()).result.number == 47
+  assert (await account.get_nonce().call()).result.nonce == 4
+
+  tx_exec_info = await sender.send_transaction(calls, signer, nonce=3)
+
+  assert_event_emmited(
+    tx_exec_info,
+    from_address=account.contract_address,
+    name='TransactionExecuted'
+  )
+
+  assert (await account.get_nonce().call()).result.nonce == 5
 
 
 @pytest.mark.asyncio
