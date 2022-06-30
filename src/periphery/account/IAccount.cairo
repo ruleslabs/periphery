@@ -1,6 +1,3 @@
-# SPDX-License-Identifier: MIT
-# OpenZeppelin Contracts for Cairo v0.1.0 (account/IAccount.cairo)
-
 %lang starknet
 
 from periphery.account.library import AccountCallArray

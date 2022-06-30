@@ -52,8 +52,8 @@ async def account_factory(get_starknet):
 @pytest.fixture
 async def dapp_factory(get_starknet):
   starknet = get_starknet
-  dapp_class = await declare(starknet, "src/periphery/test/dapp.cairo")
-  dapp = await deploy(starknet, "src/periphery/test/dapp.cairo")
+  dapp_class = await declare(starknet, "src/test/dapp.cairo")
+  dapp = await deploy(starknet, "src/test/dapp.cairo")
   return dapp, dapp_class.class_hash
 
 

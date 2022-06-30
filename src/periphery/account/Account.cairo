@@ -1,6 +1,3 @@
-# SPDX-License-Identifier: MIT
-# OpenZeppelin Contracts for Cairo v0.1.0 (account/Account.cairo)
-
 %lang starknet
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin

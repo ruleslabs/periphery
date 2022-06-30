@@ -12,6 +12,10 @@ from starkware.starknet.common.syscalls import (
   call_contract, get_caller_address, get_tx_info, get_contract_address, get_block_timestamp, library_call
 )
 
+#
+# Libraries
+#
+
 from periphery.introspection.ERC165 import ERC165
 
 from periphery.utils.constants import IACCOUNT_ID
